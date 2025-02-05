@@ -119,6 +119,8 @@ requests = [
     b"QSTP/1 POST /upload\nfile-name: test.txt\n\nfile content",
     b"QSTP/1 POST /upload\nfile-name: test2.txt\n\nabcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789",
     b"QSTP/1 DELETE /file\nfile-name: test.txt",
+    b"QSTP/1 DELETE /test\nfile-name: test.txt",
+    b"QSTP/1 POST /upload\n\nfile content",
 ]
 
 for req in requests:
