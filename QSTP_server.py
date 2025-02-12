@@ -15,7 +15,7 @@ status_codes = {
     206: "UNAUTHORIZED",
 }
 
-methods = {
+METHODS = {
     "GET",
     "POST",
     "DELETE",
@@ -24,7 +24,7 @@ methods = {
 
 class Request:
     def __init__(self, addr: tuple[str, int], method: str, path: str, headers: dict | None = None, data: bytes | None = None) -> None:
-        if method not in methods:
+        if method not in METHODS:
             raise ValueError(f"{method} is not a method")
         
         self.addr = addr
@@ -56,6 +56,9 @@ class Response:
         self.headers = headers
         self.data = data
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(status_code = {self.status_code}{f", headers = {self.headers}" if self.headers else ""}{f", data = {self.data[:50]}{"..." if len(self.data) > 50 else ""}" if self.data else ""})"
+
     def to_frame(self) -> bytes:
         head = f"{VERSION} {self.status_code} {status_codes[self.status_code]}{("\n" + "\n".join(f"{k}: {v}" for k, v in self.headers.items())) if self.headers else ""}\n"
 
@@ -64,7 +67,8 @@ class Response:
 class QSTP_Server:
     def __init__(self) -> None:
         self._server = server.Server()
-        self._routes: dict[str, typing.Callable[[Request], Response]] = {}
+        self._router = Router()
+        self.route = self._router.route
 
         @self._server.handle_data
         def _data_handler(frame: bytes, addr: tuple[str, int]) -> bytes:
@@ -94,39 +98,57 @@ class QSTP_Server:
             if version != VERSION:
                 return Response(202).to_frame()
             
-            if method in methods and (route := self._routes.get(method)):
-                return route(Request(addr, method, path, Request.parse_headers(headers_raw) if headers_raw else None, data if data else None)).to_frame()
+            if method not in METHODS:
+                return Response(203).to_frame()
             
-            return Response(101, headers = {"content-type": "descriptor"}, data = b"at end").to_frame()
+            if (route := self._router.match_route(path, method)):
+                return route(Request(addr, method, path, Request.parse_headers(headers_raw) if headers_raw else None, data if data else None)).to_frame()
 
-    def route(self, func: typing.Callable[[Request], Response]):
-        if (method := func.__name__.upper()) in methods:
-            self._routes[method] = func
+            else:
+                return Response(204, headers = {"request-method": method, "request-path": path}).to_frame()
+
+            return Response(101, headers = {"content-type": "descriptor"}, data = b"at end").to_frame()
 
     def serve(self, host: str, port: int):
         self._server.serve((host, port))
 
+class Router:
+    def __init__(self) -> None:
+        self.handlers: dict[str, dict[str, typing.Callable[[Request], Response]]] = {}
+
+        for method in METHODS:
+            self.handlers[method] = {}
+
+    def route(self, route_descriptor: str, methods: list[str] | None = None):
+        def decorator(func: typing.Callable[[Request], Response]):
+            methods_ = methods or ["GET"]
+
+            for method in methods_:
+                if method not in METHODS:
+                    raise Exception(f"Unknown method {method!r}")
+
+                self.handlers[method][route_descriptor] = func
+            
+            return func
+
+        return decorator
+
+    def match_route(self, route_descriptor: str, method: str) -> typing.Callable[[Request], Response] | None:
+        if method not in METHODS:
+            raise Exception(f"Unknown method {method!r}")
+
+        return self.handlers[method].get(route_descriptor)
+
 sv = QSTP_Server()
 
-@sv.route
-def get(rq: Request) -> Response:
+@sv.route("/")
+def index(rq: Request) -> Response:
     print(rq)
 
-    return Response(200, headers = {"origin-method": rq.method}, data = b"test data")
+    resp = Response(200, headers = {"origin-method": rq.method}, data = b"test data")
 
-@sv.route
-def post(rq: Request) -> Response:
-    print(rq)
+    print(resp)
 
-    return Response(200, headers = {"origin-method": rq.method}, data = b"test data")
-
-@sv.route
-def delete(rq: Request) -> Response:
-    print(rq)
-
-    if rq.path == "/file":
-        return Response(200, data = b"Successfully deleted.")
-
-    return Response(204, data = b"Cannot locate resource")
+    return resp
 
 sv.serve("localhost", 8080)

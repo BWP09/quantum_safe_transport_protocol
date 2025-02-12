@@ -123,6 +123,9 @@ requests = [
     b"QSTP/1 POST /upload\n\nfile content",
 ]
 
+
+
 for req in requests:
-    print(r.request(req).decode())
+    print(f"REQ: {req}")
+    print(f"RSP: {r.request(req)}")
     print("----------------")
