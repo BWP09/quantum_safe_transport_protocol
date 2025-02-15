@@ -113,7 +113,19 @@ def request(host: str, port: int, data: bytes) -> bytes:
 
 r = Requester("localhost", 8080)
 
+import random
+
+ID = str(random.randint(0, 1000)).encode()
+
 requests = [
+    b"QSTP/1 GET /echo_body\n\n" + ID,
+    b"QSTP/1 GET /time_test",
+    b"QSTP/1 GET /echo_body\n\n" + ID,
+    b"QSTP/1 GET /echo_body\n\n" + ID,
+    b"QSTP/1 GET /echo_body\n\n" + ID,
+    b"QSTP/1 GET /time_test",
+    b"QSTP/1 GET /echo_body\n\n" + ID,
+
     b"QSTP/1 GET /",
     b"QSTP/1 POST /",
     b"QSTP/1 POST /upload\nfile-name: test.txt\n\nfile content",
@@ -122,8 +134,6 @@ requests = [
     b"QSTP/1 DELETE /test\nfile-name: test.txt",
     b"QSTP/1 POST /upload\n\nfile content",
 ]
-
-
 
 for req in requests:
     print(f"REQ: {req}")

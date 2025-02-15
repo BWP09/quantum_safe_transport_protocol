@@ -17,8 +17,3 @@ class AES:
         cipher = AES_.new(self.key, AES_.MODE_CBC, iv)
 
         return unpad(cipher.decrypt(ct), AES_.block_size)
-    
-from Crypto.Random import get_random_bytes
-
-def generate_key(n: int = 32) -> bytes:
-    return get_random_bytes(n)

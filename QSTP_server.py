@@ -151,4 +151,20 @@ def index(rq: Request) -> Response:
 
     return resp
 
+import time
+
+@sv.route("/time_test")
+def time_test(rq: Request) -> Response:
+    if rq.data:
+        time.sleep(int(rq.data))
+    
+    else:
+        time.sleep(1)
+
+    return Response(200)
+
+@sv.route("/echo_body")
+def echo(rq: Request) -> Response:
+    return Response(200, data = rq.data)
+
 sv.serve("localhost", 8080)
