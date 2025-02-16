@@ -113,29 +113,53 @@ def request(host: str, port: int, data: bytes) -> bytes:
 
 r = Requester("localhost", 8080)
 
-import random
+import random, time, os, hashlib
 
-ID = str(random.randint(0, 1000)).encode()
+# ID = str(random.randint(0, 1000)).encode()
+
+# requests = [
+#     b"QSTP/1 GET /echo_body\n\n" + ID,
+#     # b"QSTP/1 GET /time_test",
+#     b"QSTP/1 GET /echo_body\n\n" + ID,
+#     b"QSTP/1 GET /echo_body\n\n" + ID,
+#     b"QSTP/1 GET /echo_body\n\n" + ID,
+#     # b"QSTP/1 GET /time_test",
+#     b"QSTP/1 GET /echo_body\n\n" + ID,
+
+#     b"QSTP/1 GET /",
+#     b"QSTP/1 POST /",
+#     b"QSTP/1 POST /upload\nfile-name: test.txt\n\nfile content",
+#     b"QSTP/1 POST /upload\nfile-name: test2.txt\n\nabcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789",
+#     b"QSTP/1 DELETE /file\nfile-name: test.txt",
+#     b"QSTP/1 DELETE /test\nfile-name: test.txt",
+#     b"QSTP/1 POST /upload\n\nfile content",
+    
+#     b"QSTP/1 GET /argtest/ARGUMENT",
+#     b"QSTP/1 GET /argtest/123",
+#     b"QSTP/1 GET /argtest/456",
+#     b"QSTP/1 GET /argtest/456/test",
+# ]
+
+filename = "test_image.jpg"
+
+with open(f"{os.getcwd()}/filetest/{filename}", "rb") as f:
+    file_content = f.read()
+
+file_len = len(file_content)
+file_hash = hashlib.sha256(file_content).hexdigest()
+
+print(f"file size: {file_len} bytes or {file_len / 1e6 :0.2f}MB")
+print(f"file hash: {file_hash}")
 
 requests = [
-    b"QSTP/1 GET /echo_body\n\n" + ID,
-    b"QSTP/1 GET /time_test",
-    b"QSTP/1 GET /echo_body\n\n" + ID,
-    b"QSTP/1 GET /echo_body\n\n" + ID,
-    b"QSTP/1 GET /echo_body\n\n" + ID,
-    b"QSTP/1 GET /time_test",
-    b"QSTP/1 GET /echo_body\n\n" + ID,
-
-    b"QSTP/1 GET /",
-    b"QSTP/1 POST /",
-    b"QSTP/1 POST /upload\nfile-name: test.txt\n\nfile content",
-    b"QSTP/1 POST /upload\nfile-name: test2.txt\n\nabcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789",
-    b"QSTP/1 DELETE /file\nfile-name: test.txt",
-    b"QSTP/1 DELETE /test\nfile-name: test.txt",
-    b"QSTP/1 POST /upload\n\nfile content",
+    f"QSTP/1 POST /upload\ncontent-length: {file_len}\ncontent-hash: {file_hash}\nfilename: {filename}\n\n".encode() + file_content,
 ]
 
 for req in requests:
-    print(f"REQ: {req}")
-    print(f"RSP: {r.request(req)}")
+    print(f"REQ: {req[:100]}...")
+
+    start = time.time()
+    print(f"RSP: {r.request(req)}")    
+    print(f"TIME -- {(time.time() - start) * 1000 :0.4f}ms")
+
     print("----------------")

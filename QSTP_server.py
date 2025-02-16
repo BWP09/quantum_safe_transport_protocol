@@ -23,7 +23,7 @@ METHODS = {
 }
 
 class Request:
-    def __init__(self, addr: tuple[str, int], method: str, path: str, headers: dict | None = None, data: bytes | None = None) -> None:
+    def __init__(self, addr: tuple[str, int], method: str, path: str, headers: dict[str, str] | None = None, data: bytes | None = None) -> None:
         if method not in METHODS:
             raise ValueError(f"{method} is not a method")
         
@@ -101,8 +101,8 @@ class QSTP_Server:
             if method not in METHODS:
                 return Response(203).to_frame()
             
-            if (route := self._router.match_route(path, method)):
-                return route(Request(addr, method, path, Request.parse_headers(headers_raw) if headers_raw else None, data if data else None)).to_frame()
+            if (ret := self._router.match_route(path, method)):
+                return ret[0](Request(addr, method, path, Request.parse_headers(headers_raw) if headers_raw else None, data if data else None), ret[1]).to_frame()
 
             else:
                 return Response(204, headers = {"request-method": method, "request-path": path}).to_frame()
@@ -114,13 +114,13 @@ class QSTP_Server:
 
 class Router:
     def __init__(self) -> None:
-        self.handlers: dict[str, dict[str, typing.Callable[[Request], Response]]] = {}
+        self.handlers: dict[str, dict[str, typing.Callable[[Request, dict[str, str]], Response]]] = {}
 
         for method in METHODS:
             self.handlers[method] = {}
 
     def route(self, route_descriptor: str, methods: list[str] | None = None):
-        def decorator(func: typing.Callable[[Request], Response]):
+        def decorator(func: typing.Callable[[Request, dict[str, str]], Response]):
             methods_ = methods or ["GET"]
 
             for method in methods_:
@@ -133,16 +133,49 @@ class Router:
 
         return decorator
 
-    def match_route(self, route_descriptor: str, method: str) -> typing.Callable[[Request], Response] | None:
+    def match_route(self, route_descriptor: str, method: str) -> tuple[typing.Callable[[Request, dict[str, str]], Response], dict[str, str]] | None:
         if method not in METHODS:
             raise Exception(f"Unknown method {method!r}")
+        
+        for defined_route, func in self.handlers[method].items():
+            path_defined = []
+            path_try = []
 
-        return self.handlers[method].get(route_descriptor)
+            for part in defined_route.split("/"):
+                if part.startswith("<") and part.endswith(">"):
+                    path_defined.append((1, part[1:-1]))
+                
+                elif part:
+                    path_defined.append((0, part))
+
+            path_try = list(filter(lambda x: bool(x), route_descriptor.split("/")))
+
+            if len(path_defined) != len(path_try):
+                continue
+            
+            variables = {}
+
+            for defined, test in zip(path_defined, path_try):
+                if defined[0] == 0 and defined[1] == test:
+                    continue
+                
+                elif defined[0] == 1:
+                    variables[defined[1]] = test
+
+                else:
+                    break
+            
+            else:
+                return func, variables
+
+
+
+import time, os, hashlib
 
 sv = QSTP_Server()
 
 @sv.route("/")
-def index(rq: Request) -> Response:
+def index(rq: Request, _) -> Response:
     print(rq)
 
     resp = Response(200, headers = {"origin-method": rq.method}, data = b"test data")
@@ -151,10 +184,8 @@ def index(rq: Request) -> Response:
 
     return resp
 
-import time
-
 @sv.route("/time_test")
-def time_test(rq: Request) -> Response:
+def time_test(rq: Request, _) -> Response:
     if rq.data:
         time.sleep(int(rq.data))
     
@@ -164,7 +195,43 @@ def time_test(rq: Request) -> Response:
     return Response(200)
 
 @sv.route("/echo_body")
-def echo(rq: Request) -> Response:
+def echo(rq: Request, _) -> Response:
     return Response(200, data = rq.data)
+
+@sv.route("/argtest/<arg1>")
+def argtest(rq: Request, args: dict[str, str]) -> Response:
+    print(args)
+
+    return Response(200, data = str(args).encode())
+
+@sv.route("/upload", methods = ["POST"])
+def upload(rq: Request, _) -> Response:
+    print(f"Headers: {rq.headers}")
+
+    if not rq.headers:
+        return Response(201, data = b"Need headers!")
+
+    if not (filename := rq.headers.get("filename")):
+        return Response(201, data = b"Need filename header!")
+    
+    if not (content_len := rq.headers.get("content-length")):
+        return Response(201, data = b"Need content-length header!")
+    
+    if not (content_hash := rq.headers.get("content-hash")):
+        return Response(201, data = b"Need content-hash header!")
+
+    if not (content := rq.data):
+        return Response(201, data = b"Need file content!")
+    
+    file_len = len(content)
+    file_hash = hashlib.sha256(content).hexdigest()
+
+    print(f"data lengths match: {file_len == int(content_len)}")
+    print(f"data hashes match: {file_hash == content_hash}")
+    
+    with open(f"{os.getcwd()}/filetest/SERVER_OUTPUT__{filename}", "wb") as f:
+        f.write(content)
+
+    return Response(200)
 
 sv.serve("localhost", 8080)
