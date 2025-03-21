@@ -47,18 +47,26 @@ decrypt and handle
 <data>
 
 -- status codes --
+000: connection
+    001: connection refused
+
 100: server
-    100: server ok
+    100: ok
     101: server error
 
 200: client
-    200: client ok
+    200: ok
     201: malformed request
     202: unknown version
     203: unknown method
     204: unknown path
     205: unauthenticated
     206: unauthorized
+
+300: proxy
+    300: ok
+    301: incomplete
+    302: unknown host
 
 -- example req --
 QSTP/1 GET /

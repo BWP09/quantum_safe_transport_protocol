@@ -1,9 +1,16 @@
-headers_input = "key1: value1\nk1: v1"
-headers = {}
+from typing import overload
 
-for line in headers_input.split("\n"):
-    k, v = line.split(":", 1)
+class Test:
+    @overload
+    def test(self, address: str):
+        ...
 
-    headers[k.strip()] = v.strip()
+    @overload
+    def test(self, one: int, two: int):
+        ...
 
-print(headers)
+    def test(self, one: int | str | None = None, two: int | None = None, address: int | str | None = None):
+        print(one, two)
+
+Test().test("test")
+Test().test(1, 2)

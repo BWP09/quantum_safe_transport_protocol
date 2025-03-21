@@ -4,22 +4,27 @@ import util
 class Server:
     def __init__(self, kem_alg: str = "ML-KEM-512") -> None:
         self.kem_alg = kem_alg
+        self._handler = None
+        self._stopped = False
 
-    def _init_socket(self):
-        self.sv_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sv_socket.bind(self.address)
-        self.sv_socket.listen(self.connections)
+    def _init_socket(self, address: tuple[str, int], connections: int):
+        self.address = address
+        self._connections = connections
+
+        self._sv_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._sv_socket.bind(self.address)
+        self._sv_socket.listen(self._connections)
 
     def serve(self, address: tuple[str, int], connections: int = 10):
-        self.address = address
-        self.connections = connections
+        self._init_socket(address, connections)
 
-        self._init_socket()
-
-        self.threads: dict[str, threading.Thread] = {}
+        self._threads: dict[str, threading.Thread] = {}
 
         while True:
-            cl_socket, cl_addr = self.sv_socket.accept()
+            cl_socket, cl_addr = self._sv_socket.accept()
+
+            if self._stopped:
+                break
 
             thread_name = f"{cl_addr[0]}:{cl_addr[1]}"
 
@@ -43,75 +48,65 @@ class Server:
                     raise Exception("message length was not defined")
 
                 req = AES.decrypt(cipher_text)
-                
+
                 try:
-                    resp = self.handler(req, addr)
+                    if self._handler:
+                        resp = self._handler(req, addr)
+
+                    else:
+                        resp = req
 
                 except Exception as e:
                     util.send_msg(sock, AES.encrypt(b"SERVER ERROR"))
 
-                    del self.threads[name]
+                    del self._threads[name]
 
                     raise e
 
                 util.send_msg(sock, AES.encrypt(resp))
 
-                del self.threads[name]
+                del self._threads[name]
 
+            # proc = multiprocessing.Process(target = callback, name = thread_name, args = (cl_socket, cl_addr, thread_name))
             thread = threading.Thread(target = callback, name = thread_name, args = (cl_socket, cl_addr, thread_name))
 
-            self.threads[thread_name] = thread
+            self._threads[thread_name] = thread
 
             thread.start()
 
+        if self._stopped:
+            for thread in self._threads.copy().values():
+                thread.join(5)
+
+            self._sv_socket.close()
+
+    def close(self):
+        self._stopped = True
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(self.address)
+        sock.close()
+
     def handle_data(self, func: typing.Callable[[bytes, tuple[str, int]], bytes]) -> typing.Callable[[bytes, tuple[str, int]], bytes]:
-        self.handler = func
+        self._handler = func
 
         return func
 
 if __name__ == "__main__":
-    import time, random, os
-
     server = Server()
 
     @server.handle_data
-    def handle(data: bytes, addr: tuple[str, int]) -> bytes:
-        if len(data) < 1000:
-            print(f"data: {data}")
-        
-        print(f"{len(data) = }")
+    def handle(frame: bytes, addr: tuple[str, int]) -> bytes:
+        print(f"connection from {addr}")
 
-        version, rest = data.split(b" ", 1)
-        method, rest = rest.split(b" ", 1)
-        path, rest = rest.split(b" ", 1)
+        if len(frame) < 100:
+            print(f"data = {frame}")
 
-        print(version, method)
+        else:
+            print(f"data = {frame[:100]}...")
 
-        return b"200 OK"
+        print(f"{len(frame) = }")
 
-
-
-
-        if data.startswith(b"GET"):
-            method, version, path, _, data_ = data.split(b" ", 4)
-
-            print(f"{method} (version {version}) path {path} with data: \"{data_ if len(data_) < 100 else f"{len(data_) = }"}\"")
-
-            return "OK".encode()
-
-        elif data.startswith(b"POST"):
-            method, version, path, _, data_ = data.split(b" ", 4)
-
-            print(f"{method} (version {version}) path {path} with data: \"{data_ if len(data_) < 100 else f"{len(data_) = }"}\"")
-
-            if path == b"/upload":
-                with open(f"{os.getcwd()}/output.png", "wb") as f:
-                    f.write(data.split(b" : ", 1)[1])
-
-                print("saved image to `output.png`")
-
-            return "OK".encode()
-
-        return "unknown method".encode()
+        return f"{addr[0]}:{addr[1]}".encode()
 
     server.serve(("0.0.0.0", 8080))
