@@ -36,6 +36,8 @@ class QSTP_Proxy:
         return func
 
 if __name__ == "__main__":
+    import sys
+
     proxy_ = QSTP_Proxy()
 
     @proxy_.handle_client_data
@@ -60,4 +62,4 @@ if __name__ == "__main__":
 
         return rsp
 
-    proxy_.serve(("0.0.0.0", 8081), ("localhost", 8080))
+    proxy_.serve(("0.0.0.0", int(sys.argv[1])), ("localhost", int(sys.argv[2])))

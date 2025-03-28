@@ -16,21 +16,29 @@ class QSTP_Client:
         return self.request_obj(QSTP.Request(address, method, path, headers, data))
 
 if __name__ == "__main__":
-    import time
+    import sys, time
 
-    address = ("localhost", 8080)
+    address = ("localhost", int(sys.argv[1]))
 
     client_ = QSTP_Client()
 
     requests = [
-        (address, "GET", "/test", {"Host": "server1.com"}, b"test data from client looking for server 1"),
-        (address, "GET", "/test", {"Host": "server2.com", "test-shutdown": "finish request"}, b"test data from client looking for server 2"),
-        (address, "GET", "/test", {"Host": "server3.com"}, b"test data from client looking for server 3"),
-        (address, "GET", "/test", {"Host": "server2.com"}, b"test data from client looking for server 2"),
+        # (address, "GET", "/test", {"Host": "server1.com"}, b"test data from client looking for server 1"),
+        # (address, "GET", "/test", {"Host": "server2.com", "test-shutdown": "finish request"}, b"test data from client looking for server 2"),
+        # (address, "GET", "/test", {"Host": "server3.com"}, b"test data from client looking for server 3"),
+        # (address, "GET", "/test", {"Host": "server2.com"}, b"test data from client looking for server 2"),
+
+        (address, "GET", "/echo", {"header-test": "test-header"}, b"test data from client"),
     ]
 
     for i, req in enumerate(requests):
         print(f" -- {i + 1}/{len(requests)} -- ")
+
+        t1 = time.time()
         print(client_.request(*req))
-        
-        time.sleep(0.5)
+        t2 = time.time()
+
+        print(f"{(t2 - t1) * 1000 :.5f}ms")
+
+        if i + 1 != len(requests):
+            time.sleep(0.5)
